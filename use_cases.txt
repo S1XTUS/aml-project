@@ -1,0 +1,8 @@
+Use Case 1: Detect suspicious transaction patterns
+Identify accounts that send/receive high-volume transfers with inconsistent currency or timing.
+
+Use Case 2: Classify transactions as suspicious (AML)
+Use supervised models on Is Laundering label.
+
+Use Case 3: Generate SAR summaries using LLMs
+Feed suspicious transactions to an LLM (OpenAI/DeepSeek) to auto-generate SAR narratives.

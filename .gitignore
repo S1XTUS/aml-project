@@ -1,0 +1,28 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Large data files - DON'T TRACK
+data/
+!data/README.md
+
+# Model files
+*.pkl
+*.joblib
+
+# Output files
+*.csv
+*.json
+*.xlsx

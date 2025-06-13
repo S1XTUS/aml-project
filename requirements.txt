@@ -1,0 +1,9 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+pyyaml
+openai
+langchain
+faiss-cpu

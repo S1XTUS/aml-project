@@ -1,0 +1,62 @@
+🛠️ PHASE 1: Data Collection & Setup
+Define Use Cases & Scenarios
+
+Transaction monitoring (e.g., smurfing, layering)
+
+KYC/EDD validation
+
+SAR narrative generation
+
+AML regulation Q&A via RAG
+
+Collect Sample Data
+
+🔄 data/raw/ – Transaction CSVs (simulated or anonymized)
+
+🧾 data/kyc_docs/ – PDFs or text versions of KYC/EDD docs
+
+📚 data/regulations_corpus/ – FATF guidelines, internal AML policy docs
+
+🚨 data/external/ – OFAC list, PEP database, media feeds
+
+Prepare config.yaml
+
+API keys (OpenAI, DeepSeek)
+
+Model params (thresholds, vector store type)
+
+File paths
+
+Install Dependencies
+
+bash
+Copy
+Edit
+pip install -r requirements.txt
+📊 PHASE 2: ML-Based Transaction Analysis
+Explore & Clean Data
+
+Jupyter: 01_data_exploration.ipynb
+
+Handle nulls, outliers, standardization
+
+Anomaly Detection Model
+
+src/models/anomaly_detector.py
+
+Try Isolation Forest, Autoencoder, or One-Class SVM
+
+Output: anomaly scores per transaction
+
+Risk Classification Model
+
+src/models/risk_classifier.py
+
+Label data as "suspicious"/"normal"
+
+Use XGBoost or neural nets
+
+Explainability
+
+Use SHAP or LIME: src/models/explainer.py
+

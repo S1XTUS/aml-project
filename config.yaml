@@ -1,0 +1,17 @@
+paths:
+  raw_data: data\raw\archive\LI-Small_Trans.csv
+  processed_data: data\processed\LI-Small_Trans.csv
+  model_dir : models/
+
+thresholds:
+  anomaly_score:0.8
+  risk_score:0.7
+
+api_keys:
+  deepseek:sk-1234567890
+
+model:
+  type: "xgboost"
+  features: ["Amount_Received", "Amount_Paid", "Payment_Format", "Receiving_Currency"]
+
+  
