@@ -1,0 +1,8 @@
+Customer Name: John Doe
+Date of Birth: 1984-03-22
+Nationality: British
+Current Address: 5 Baker Street, London, UK
+Account Opening Date: 2020-05-15
+Source of Funds: Employment Income
+Occupation: Consultant
+Red Flags: None reported

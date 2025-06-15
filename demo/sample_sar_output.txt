@@ -1,0 +1,14 @@
+**Suspicious Activity Report (SAR) Narrative � CASE-2025-001**  
+
+On June 15, 2025, at 10:35 UTC, a high-risk transaction of **$98,000.75 USD** was initiated from Account **1234567890** (Alpha Bank) to Account **9876543210** (Beta Bank), a newly added offshore account flagged as high risk. The transaction exhibits multiple red flags for potential financial crime, including:  
+
+1. **Unusual Activity for Customer Profile**: The sender has no prior history of large USD transfers in the past 12 months, making this transaction inconsistent with their established financial behavior.  
+2. **High-Risk Jurisdictional Links**: The sender�s account was recently updated to reflect an address in a known tax haven jurisdiction, raising concerns about potential tax evasion or money laundering.  
+3. **Offshore Recipient**: The beneficiary account is located in an offshore jurisdiction with weak AML/CFT controls, aligning with typologies outlined in **FinCEN Advisory FIN-2023-A002** regarding high-risk cross-border transactions.  
+4. **Amount Just Below Reporting Threshold**: The transaction amount is notably close to, but deliberately below, the $100,000 CTR threshold, a potential indicator of structuring.  
+
+Given the combination of sudden high-value activity, recent KYC changes to a high-risk jurisdiction, and the offshore nature of the recipient, this transaction is highly suspicious and warrants further investigation for potential money laundering, sanctions evasion, or other illicit financial activity.  
+
+**Recommended Action**: Enhanced due diligence on both accounts, review of additional transactions linked to the parties, and coordination with relevant regulatory authorities as necessary.  
+
+**End of Narrative**
