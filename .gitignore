@@ -15,9 +15,12 @@ venv/
 Thumbs.db
 
 # Large data files - DON'T TRACK
-data/
-!data/README.md
-
+data/raw/
+data/processed/
+!data/
+!data/kyc_docs/
+!data/regulations_corpus/
+!data/external/
 
 # Output files
 *.csv

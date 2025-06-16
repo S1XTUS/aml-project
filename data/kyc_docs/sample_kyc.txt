@@ -1,0 +1,8 @@
+Customer Name: Jane Smith
+Date of Birth: 1990-08-19
+Nationality: Indian
+Current Address: 11 Residency Road, Bangalore, India
+Account Opening Date: 2022-03-01
+Source of Funds: Consulting Fees
+Occupation: Strategy Advisor
+Red Flags: None
