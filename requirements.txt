@@ -7,3 +7,4 @@ pyyaml
 openai
 langchain
 faiss-cpu
+torch_geometric
