@@ -2,7 +2,6 @@ import pandas as pd
 import yaml
 import os
 
-# Project root is now directly D:\AML\
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 config_path = os.path.join(project_root, "config.yaml")
 
