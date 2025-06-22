@@ -1,0 +1,118 @@
+PS D:\aml-project> & C:/Users/Kartik.Pande/AppData/Local/anaconda3/envs/AML/python.exe d:/aml-project/src/models/anomaly_detector.py
+Training Isolation Forest model...
+2025-06-23 01:33:13,611 - INFO - Loaded 6924049 transactions from D:\aml-project\data\processed\LI-Small_Trans.csv
+2025-06-23 01:33:13,612 - INFO - Training anomaly detector with isolation_forest algorithm...
+2025-06-23 01:33:13,612 - INFO - Starting data preprocessing...
+2025-06-23 01:33:37,632 - INFO - Fitted scaler on 16 features: ['From_Bank', 'To_Bank', 'Amount_Received', 'Receiving_Currency', 'Amount_Paid', 'Payment_Currency', 'Payment_Format', 'hour', 'day_of_week', 'month', 'is_weekend', 'amount_ratio', 'amount_difference', 'same_account', 'account_diff', 'same_bank']
+2025-06-23 01:33:37,632 - INFO - Preprocessing Complete. Shape: (6924049, 16)
+2025-06-23 01:33:37,857 - INFO - Training Isolation Forest...
+2025-06-23 01:34:58,892 - INFO - Isolation Forest training complete.
+2025-06-23 01:34:58,892 - INFO - Model training completed successfully!
+2025-06-23 01:35:01,697 - INFO - Training anomaly detector with isolation_forest algorithm...
+2025-06-23 01:35:01,697 - INFO - Starting data preprocessing...
+2025-06-23 01:35:27,677 - INFO - Fitted scaler on 16 features: ['From_Bank', 'To_Bank', 'Amount_Received', 'Receiving_Currency', 'Amount_Paid', 'Payment_Currency', 'Payment_Format', 'hour', 'day_of_week', 'month', 'is_weekend', 'amount_ratio', 'amount_difference', 'same_account', 'account_diff', 'same_bank']
+2025-06-23 01:35:27,678 - INFO - Preprocessing Complete. Shape: (5539239, 16)
+2025-06-23 01:35:28,077 - INFO - Training Isolation Forest...
+2025-06-23 01:37:14,812 - INFO - Isolation Forest training complete.
+2025-06-23 01:37:14,812 - INFO - Model training completed successfully!
+2025-06-23 01:37:14,892 - INFO - Predicting anomalies for 1384810 transactions...
+2025-06-23 01:37:14,894 - INFO - Starting data preprocessing...
+2025-06-23 01:50:41,044 - INFO - Preprocessing Complete. Shape: (1384810, 16)
+2025-06-23 01:51:14,111 - INFO - Detected 64060 anomalies (4.63%)
+
+=== MODEL EVALUATION ===
+Classification Report:
+              precision    recall  f1-score   support
+
+      Normal       1.00      0.95      0.98   1384099
+     Anomaly       0.00      0.05      0.00       711
+
+    accuracy                           0.95   1384810
+   macro avg       0.50      0.50      0.49   1384810
+weighted avg       1.00      0.95      0.98   1384810
+
+
+Confusion Matrix:
+[[1320073   64026]
+ [    677      34]]
+
+Precision: 0.001
+Recall: 0.048
+F1-Score: 0.001
+2025-06-23 01:51:15,230 - INFO - Model saved to D:\aml-project\models\isolation_forest
+✅ Isolation_Forest anomaly detection model trained and saved to D:\aml-project\models\isolation_forest
+
+Training Autoencoder model...
+2025-06-23 01:51:28,992 - INFO - Loaded 6924049 transactions from D:\aml-project\data\processed\LI-Small_Trans.csv
+2025-06-23 01:51:28,992 - INFO - Training anomaly detector with autoencoder algorithm...
+2025-06-23 01:51:28,992 - INFO - Starting data preprocessing...
+2025-06-23 01:51:49,064 - INFO - Fitted scaler on 16 features: ['From_Bank', 'To_Bank', 'Amount_Received', 'Receiving_Currency', 'Amount_Paid', 'Payment_Currency', 'Payment_Format', 'hour', 'day_of_week', 'month', 'is_weekend', 'amount_ratio', 'amount_difference', 'same_account', 'account_diff', 'same_bank']
+2025-06-23 01:51:49,064 - INFO - Preprocessing Complete. Shape: (6924049, 16)
+2025-06-23 01:51:49,264 - INFO - Training Autoencoder...
+2025-06-23 02:03:31,790 - INFO - Autoencoder training complete. Threshold: 0.4013
+2025-06-23 02:03:31,887 - INFO - Model training completed successfully!
+2025-06-23 02:03:34,469 - INFO - Training anomaly detector with autoencoder algorithm...
+2025-06-23 02:03:34,470 - INFO - Starting data preprocessing...
+2025-06-23 02:04:00,424 - INFO - Fitted scaler on 16 features: ['From_Bank', 'To_Bank', 'Amount_Received', 'Receiving_Currency', 'Amount_Paid', 'Payment_Currency', 'Payment_Format', 'hour', 'day_of_week', 'month', 'is_weekend', 'amount_ratio', 'amount_difference', 'same_account', 'account_diff', 'same_bank']
+2025-06-23 02:04:00,424 - INFO - Preprocessing Complete. Shape: (5539239, 16)
+2025-06-23 02:04:00,772 - INFO - Training Autoencoder...
+2025-06-23 02:10:40,140 - INFO - Autoencoder training complete. Threshold: 0.3914
+2025-06-23 02:10:40,218 - INFO - Model training completed successfully!
+2025-06-23 02:10:40,282 - INFO - Predicting anomalies for 1384810 transactions...
+2025-06-23 02:10:40,284 - INFO - Starting data preprocessing...
+2025-06-23 02:24:06,284 - INFO - Preprocessing Complete. Shape: (1384810, 16)
+2025-06-23 02:24:07,175 - INFO - Detected 46308 anomalies (3.34%)
+
+=== MODEL EVALUATION ===
+Classification Report:
+              precision    recall  f1-score   support
+
+      Normal       1.00      0.97      0.98   1384099
+     Anomaly       0.00      0.06      0.00       711
+
+    accuracy                           0.97   1384810
+   macro avg       0.50      0.51      0.49   1384810
+weighted avg       1.00      0.97      0.98   1384810
+
+
+Confusion Matrix:
+[[1337836   46263]
+ [    666      45]]
+
+Precision: 0.001
+Recall: 0.063
+F1-Score: 0.002
+2025-06-23 02:24:08,050 - INFO - Model saved to D:\aml-project\models\autoencoder
+✅ Autoencoder anomaly detection model trained and saved to D:\aml-project\models\autoencoder
+
+==================================================
+EXAMPLE: Predicting on new data
+2025-06-23 02:24:25,395 - INFO - Loaded 6924049 transactions from D:\aml-project\data\processed\LI-Small_Trans.csv
+2025-06-23 02:24:26,512 - INFO - Model loaded from D:\aml-project\models\isolation_forest
+2025-06-23 02:24:26,512 - INFO - Predicting anomalies for 100 transactions...
+2025-06-23 02:24:26,512 - INFO - Starting data preprocessing...
+2025-06-23 02:24:26,611 - INFO - Preprocessing Complete. Shape: (100, 16)
+2025-06-23 02:24:26,670 - INFO - Detected 2 anomalies (2.00%)
+
+=== ANOMALY ANALYSIS SUMMARY ===
+Total Transactions: 100
+Anomalies Detected: 2 (2.00%)
+
+Risk Level Distribution:
+  Medium Risk: 59 (59.0%)
+  High Risk: 26 (26.0%)
+  Low Risk: 15 (15.0%)
+
+Top 5 Most Anomalous Transactions:
+  Transaction 97: Score=-0.001, Amount=$2496595.06
+  Transaction 0: Score=-0.004, Amount=$3195403.0
+
+✅ Anomaly detection system ready for use!
+
+Usage Examples:
+  # Train new model:
+  detector = train_anomaly_model('your_data.csv', 'isolation_forest')
+  # Predict anomalies:
+  results = predict_anomalies_from_model(your_df, 'models')
+  # Analyze results:
+  analyze_anomalies(results)
