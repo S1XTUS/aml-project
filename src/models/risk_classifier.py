@@ -25,12 +25,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Fixed paths - use relative paths and os.path.join for cross-platform compatibility
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Get the project root directory (go up two levels from src/models/)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 MODEL_PATH = os.path.join(MODELS_DIR, "risk_classifier_xgb.pkl")
 PREPROCESSOR_PATH = os.path.join(MODELS_DIR, "aml_preprocessor.pkl")
+SCALER_PATH = os.path.join(MODELS_DIR, "risk_classifier_scaler.pkl")  # Explicit scaler path
 FEATURE_STATS_PATH = os.path.join(MODELS_DIR, "aml_feature_stats.pkl")
 ENCODERS_PATH = os.path.join(MODELS_DIR, "aml_encoders.pkl")
 
@@ -43,12 +45,14 @@ class AdvancedAMLRiskClassifier:
     def __init__(self, model_path: str = MODEL_PATH):
         self.model_path = model_path
         self.preprocessor_path = PREPROCESSOR_PATH
+        self.scaler_path = SCALER_PATH  # Explicit scaler path
         self.feature_stats_path = FEATURE_STATS_PATH
         self.encoders_path = ENCODERS_PATH
         
         # Model components
         self.model = None
         self.preprocessor = None
+        self.scaler = None  # Explicit scaler reference
         self.feature_stats = {}
         self.encoders = {}
         self.feature_columns = []
@@ -87,6 +91,10 @@ class AdvancedAMLRiskClassifier:
             self.encoders['Payment_Currency'].fit(['USD', 'EUR', 'GBP', 'CHF', 'Unknown'])
             self.encoders['Payment_Format'].fit(['wire_transfer', 'card', 'check', 'cash', 'Unknown'])
             self.encoders['bank_pair'].fit(['0_0', '1_1', '123_456', 'Unknown'])
+            
+            # Initialize scaler
+            self.scaler = StandardScaler()
+            self.preprocessor = self.scaler  # Keep backward compatibility
         
     def create_advanced_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -276,37 +284,71 @@ class AdvancedAMLRiskClassifier:
         logger.info(f"Training set: {len(X_train)} samples")
         logger.info(f"Test set: {len(X_test)} samples")
         
-        # Handle severe class imbalance with combined sampling
-        # Use SMOTE to oversample minority class and RandomUnderSampler to reduce majority class
-        smote = SMOTE(random_state=42, k_neighbors=min(3, y_train.sum()-1))  # Adjust k_neighbors if too few positive samples
-        undersampler = RandomUnderSampler(random_state=42, sampling_strategy=0.1)  # 10% positive class
+        # Create and fit scaler first
+        self.scaler = StandardScaler()
+        self.preprocessor = self.scaler  # Keep backward compatibility
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
         
-        # Create preprocessing pipeline
-        self.preprocessor = StandardScaler()
-        X_train_scaled = self.preprocessor.fit_transform(X_train)
-        X_test_scaled = self.preprocessor.transform(X_test)
+        logger.info("Scaler fitted and data scaled successfully")
         
-        # Apply sampling
+        # Handle severe class imbalance with adaptive sampling strategy
+        positive_count = y_train.sum()
+        negative_count = len(y_train) - positive_count
+        
+        logger.info(f"Original class distribution - Positive: {positive_count}, Negative: {negative_count}")
+        
+        # Use a more conservative approach for severe imbalance
+        # First, use SMOTE to increase minority class
+        k_neighbors = min(5, positive_count - 1) if positive_count > 1 else 1
+        smote = SMOTE(random_state=42, k_neighbors=k_neighbors)
+        
         X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled, y_train)
-        X_train_resampled, y_train_resampled = undersampler.fit_resample(X_train_resampled, y_train_resampled)
         
-        logger.info(f"After resampling: {len(X_train_resampled)} samples")
-        logger.info(f"Positive class ratio: {y_train_resampled.mean()*100:.1f}%")
+        positive_after_smote = y_train_resampled.sum()
+        negative_after_smote = len(y_train_resampled) - positive_after_smote
         
-        # Train XGBoost model (better for imbalanced data)
+        logger.info(f"After SMOTE - Positive: {positive_after_smote}, Negative: {negative_after_smote}")
+        
+        # Only apply undersampling if we have enough samples and the ratio makes sense
+        if negative_after_smote > positive_after_smote * 5:  # Only if majority is 5x larger
+            # Calculate a reasonable ratio - aim for 1:3 or 1:4 ratio (positive:negative)
+            target_ratio = min(0.25, positive_after_smote / negative_after_smote * 2)  # At most 25% positive
+            
+            logger.info(f"Applying undersampling with target ratio: {target_ratio:.3f}")
+            
+            undersampler = RandomUnderSampler(random_state=42, sampling_strategy=target_ratio)
+            X_train_resampled, y_train_resampled = undersampler.fit_resample(X_train_resampled, y_train_resampled)
+        else:
+            logger.info("Skipping undersampling - ratio already reasonable after SMOTE")
+        
+        final_positive = y_train_resampled.sum()
+        final_negative = len(y_train_resampled) - final_positive
+        
+        logger.info(f"Final resampled distribution - Positive: {final_positive}, Negative: {final_negative}")
+        logger.info(f"Final positive class ratio: {y_train_resampled.mean()*100:.1f}%")
+        
+        # For extremely imbalanced data, use class weights as well
+        pos_weight = negative_count / positive_count if positive_count > 0 else 1
+        scale_pos_weight = min(pos_weight, 100)  # Cap the weight to avoid extreme values
+        
+        # Train XGBoost model with appropriate parameters for imbalanced data
         self.model = xgb.XGBClassifier(
-            n_estimators=300,
-            max_depth=8,
+            n_estimators=200,  # Reduced for faster training with large dataset
+            max_depth=6,       # Reduced to prevent overfitting
             learning_rate=0.1,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,
             eval_metric='auc',
-            early_stopping_rounds=50,
-            n_jobs=-1
+            early_stopping_rounds=20,  # Reduced for faster training
+            n_jobs=-1,
+            scale_pos_weight=scale_pos_weight  # Handle remaining imbalance
         )
         
-        # Fit model
+        logger.info(f"Training XGBoost with scale_pos_weight={scale_pos_weight:.2f}")
+        
+        # Fit model with early stopping
         self.model.fit(
             X_train_resampled, y_train_resampled,
             eval_set=[(X_test_scaled, y_test)],
@@ -321,11 +363,24 @@ class AdvancedAMLRiskClassifier:
         
         # Find optimal threshold using precision-recall curve
         precision, recall, thresholds = precision_recall_curve(y_test, y_pred_proba)
+        
+        # For imbalanced data, optimize for F1 score or F2 score (emphasizes recall)
         f1_scores = 2 * (precision * recall) / (precision + recall + 1e-8)
-        optimal_threshold = thresholds[np.argmax(f1_scores)]
+        f2_scores = 5 * (precision * recall) / (4 * precision + recall + 1e-8)  # Emphasizes recall more
+        
+        # Use F2 score for AML (better to catch more suspicious transactions)
+        optimal_threshold = thresholds[np.argmax(f2_scores)]
         
         # Store optimal threshold
         self.optimal_threshold = optimal_threshold
+        
+        # Additional evaluation metrics
+        y_pred_optimal = (y_pred_proba >= optimal_threshold).astype(int)
+        
+        from sklearn.metrics import precision_score, recall_score, f1_score
+        precision_optimal = precision_score(y_test, y_pred_optimal)
+        recall_optimal = recall_score(y_test, y_pred_optimal)
+        f1_optimal = f1_score(y_test, y_pred_optimal)
         
         # Feature importance
         feature_importance = dict(zip(feature_columns, self.model.feature_importances_))
@@ -334,18 +389,28 @@ class AdvancedAMLRiskClassifier:
         results = {
             'auc_score': auc_score,
             'optimal_threshold': optimal_threshold,
+            'precision': precision_optimal,
+            'recall': recall_optimal,
+            'f1_score': f1_optimal,
             'top_features': top_features,
             'training_samples': len(X_train_resampled),
             'test_samples': len(X_test),
-            'feature_count': len(feature_columns)
+            'feature_count': len(feature_columns),
+            'original_positive_ratio': positive_count / len(y_train),
+            'final_positive_ratio': y_train_resampled.mean(),
+            'scale_pos_weight': scale_pos_weight
         }
         
         logger.info(f"Model training completed!")
         logger.info(f"AUC Score: {auc_score:.4f}")
         logger.info(f"Optimal Threshold: {optimal_threshold:.4f}")
+        logger.info(f"Precision: {precision_optimal:.4f}")
+        logger.info(f"Recall: {recall_optimal:.4f}")
+        logger.info(f"F1 Score: {f1_optimal:.4f}")
         logger.info(f"Top 5 features: {[f[0] for f in top_features[:5]]}")
         
         return results
+
     
     def save_model(self, model_path: str = None):
         """
@@ -359,28 +424,39 @@ class AdvancedAMLRiskClassifier:
         
         # Save model
         joblib.dump(self.model, model_path)
+        logger.info(f"Model saved to {model_path}")
         
-        # Save preprocessor
+        # Save scaler explicitly to the specified path
+        joblib.dump(self.scaler, self.scaler_path)
+        logger.info(f"Scaler saved to {self.scaler_path}")
+        
+        # Save preprocessor (for backward compatibility)
         joblib.dump(self.preprocessor, self.preprocessor_path)
+        logger.info(f"Preprocessor saved to {self.preprocessor_path}")
         
         # Save feature statistics
         joblib.dump(self.feature_stats, self.feature_stats_path)
+        logger.info(f"Feature statistics saved to {self.feature_stats_path}")
         
         # Save encoders
         joblib.dump(self.encoders, self.encoders_path)
+        logger.info(f"Encoders saved to {self.encoders_path}")
         
         # Save additional metadata
         metadata = {
             'feature_columns': self.feature_columns,
             'optimal_threshold': getattr(self, 'optimal_threshold', 0.5),
             'model_version': '2.0',
-            'training_date': datetime.now().isoformat()
+            'training_date': datetime.now().isoformat(),
+            'scaler_path': self.scaler_path,
+            'preprocessor_path': self.preprocessor_path
         }
         
         metadata_path = model_path.replace('.pkl', '_metadata.pkl')
         joblib.dump(metadata, metadata_path)
+        logger.info(f"Metadata saved to {metadata_path}")
         
-        logger.info(f"Model and components saved to {model_path}")
+        logger.info(f"All model components saved successfully!")
     
     def load_model(self, model_path: str = None):
         """
@@ -396,15 +472,34 @@ class AdvancedAMLRiskClassifier:
         try:
             # Load model
             self.model = joblib.load(model_path)
+            logger.info(f"Model loaded from {model_path}")
             
-            # Load preprocessor
-            self.preprocessor = joblib.load(self.preprocessor_path)
+            # Load scaler explicitly
+            if os.path.exists(self.scaler_path):
+                self.scaler = joblib.load(self.scaler_path)
+                logger.info(f"Scaler loaded from {self.scaler_path}")
+            else:
+                logger.warning(f"Scaler file not found at {self.scaler_path}")
+            
+            # Load preprocessor (for backward compatibility)
+            if os.path.exists(self.preprocessor_path):
+                self.preprocessor = joblib.load(self.preprocessor_path)
+                logger.info(f"Preprocessor loaded from {self.preprocessor_path}")
+                
+                # If scaler wasn't loaded separately, use preprocessor as scaler
+                if self.scaler is None:
+                    self.scaler = self.preprocessor
+                    logger.info("Using preprocessor as scaler for backward compatibility")
             
             # Load feature statistics
-            self.feature_stats = joblib.load(self.feature_stats_path)
+            if os.path.exists(self.feature_stats_path):
+                self.feature_stats = joblib.load(self.feature_stats_path)
+                logger.info(f"Feature statistics loaded from {self.feature_stats_path}")
             
             # Load encoders
-            self.encoders = joblib.load(self.encoders_path)
+            if os.path.exists(self.encoders_path):
+                self.encoders = joblib.load(self.encoders_path)
+                logger.info(f"Encoders loaded from {self.encoders_path}")
             
             # Load metadata
             metadata_path = model_path.replace('.pkl', '_metadata.pkl')
@@ -412,9 +507,11 @@ class AdvancedAMLRiskClassifier:
                 metadata = joblib.load(metadata_path)
                 self.feature_columns = metadata['feature_columns']
                 self.optimal_threshold = metadata.get('optimal_threshold', 0.5)
+                logger.info(f"Metadata loaded from {metadata_path}")
             
-            logger.info(f"Model loaded from {model_path}")
+            logger.info("All model components loaded successfully!")
             return True
+            
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
             return False
@@ -460,11 +557,16 @@ class AdvancedAMLRiskClassifier:
         # Select and order features
         feature_data = df_featured[self.feature_columns].fillna(0)
         
-        # Scale features if preprocessor exists
-        if self.preprocessor is not None:
+        # Scale features using the explicit scaler
+        if self.scaler is not None:
+            feature_scaled = self.scaler.transform(feature_data)
+            logger.debug("Features scaled using loaded scaler")
+        elif self.preprocessor is not None:
             feature_scaled = self.preprocessor.transform(feature_data)
+            logger.debug("Features scaled using preprocessor (backward compatibility)")
         else:
             feature_scaled = feature_data.values
+            logger.warning("No scaler available, using raw features")
         
         return feature_scaled
     
@@ -603,109 +705,211 @@ def load_training_data() -> pd.DataFrame:
         logger.error(f"Error loading training data: {str(e)}")
         raise
 
-if __name__ == "__main__":
-    # Example of how to use the classifier
+def classify_transaction(transaction: dict, threshold: float = None) -> dict:
+    """
+    Classify a transaction as suspicious or not based on risk score
     
-    # Sample transaction for testing
-    sample_transaction = {
-        'amount': 15000,
-        'timestamp': '2024-06-15 14:30:00',
-        'from_bank': 123,
-        'to_bank': 456,
-        'receiving_currency': 'USD',
-        'payment_currency': 'EUR',
-        'payment_format': 'wire_transfer'
+    Args:
+        transaction: Dictionary containing transaction details
+        threshold: Custom threshold for classification (optional)
+    
+    Returns:
+        Dictionary with risk_score, is_suspicious, and confidence
+    """
+    classifier = get_classifier()
+    
+    # Get risk score
+    risk_score = predict_risk_score(transaction)
+    
+    # Use optimal threshold if available, otherwise use provided or default
+    if threshold is None:
+        threshold = getattr(classifier, 'optimal_threshold', 0.5)
+    
+    # Classify
+    is_suspicious = risk_score >= threshold
+    
+    # Calculate confidence (distance from threshold)
+    confidence = abs(risk_score - threshold) / max(threshold, 1 - threshold)
+    confidence = min(confidence, 1.0)
+    
+    return {
+        'risk_score': risk_score,
+        'is_suspicious': is_suspicious,
+        'confidence': round(confidence, 4),
+        'threshold_used': threshold,
+        'risk_level': 'HIGH' if risk_score >= 0.8 else 'MEDIUM' if risk_score >= 0.5 else 'LOW'
+    }
+
+def batch_predict(transactions: List[dict]) -> List[dict]:
+    """
+    Predict risk scores for multiple transactions
+    
+    Args:
+        transactions: List of transaction dictionaries
+    
+    Returns:
+        List of prediction results
+    """
+    results = []
+    
+    for i, transaction in enumerate(transactions):
+        try:
+            result = classify_transaction(transaction)
+            result['transaction_id'] = i
+            results.append(result)
+        except Exception as e:
+            logger.error(f"Error processing transaction {i}: {str(e)}")
+            results.append({
+                'transaction_id': i,
+                'risk_score': 0.0,
+                'is_suspicious': False,
+                'confidence': 0.0,
+                'error': str(e)
+            })
+    
+    return results
+
+def get_model_info() -> dict:
+    """
+    Get information about the loaded model
+    """
+    classifier = get_classifier()
+    
+    if classifier.model is None:
+        classifier.load_model()
+    
+    info = {
+        'model_loaded': classifier.model is not None,
+        'model_type': type(classifier.model).__name__ if classifier.model else None,
+        'feature_count': len(classifier.feature_columns),
+        'optimal_threshold': getattr(classifier, 'optimal_threshold', 0.5),
+        'model_path': classifier.model_path,
+        'scaler_available': classifier.scaler is not None,
+        'encoders_count': len(classifier.encoders)
     }
     
-    print("Advanced AML Risk Classifier")
-    print("===========================")
-    print("Usage:")
-    print("1. Train model: results = train_risk_classifier(your_dataframe)")
-    print("2. Predict risk: score = predict_risk_score(transaction_dict)")
-    print("3. Load training data: df = load_training_data()")
+    # Add feature importance if available
+    if classifier.model and hasattr(classifier.model, 'feature_importances_'):
+        feature_importance = dict(zip(classifier.feature_columns, classifier.model.feature_importances_))
+        top_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:10]
+        info['top_features'] = top_features
     
-    # Test with sample prediction
-    print(f"\nSample prediction (basic scoring): {predict_risk_score(sample_transaction)}")
+    return info
+
+def retrain_model(new_data_path: str = None) -> dict:
+    """
+    Retrain the model with new data
     
-    # Load actual training data
-    print("\nLoading training data...")
+    Args:
+        new_data_path: Path to new training data (optional)
+    
+    Returns:
+        Training results
+    """
     try:
-        training_df = load_training_data()
-        print(f"Loaded {len(training_df)} training transactions")
-        print(f"Suspicious transactions: {training_df['Is_Laundering'].sum()} ({training_df['Is_Laundering'].mean()*100:.1f}%)")
+        if new_data_path:
+            # Load new data from specified path
+            df = pd.read_csv(new_data_path)
+        else:
+            # Load default training data
+            df = load_training_data()
+        
+        # Train new model
+        results = train_risk_classifier(df)
+        
+        logger.info("Model retrained successfully")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error retraining model: {str(e)}")
+        raise
+
+def validate_model(test_data: pd.DataFrame = None) -> dict:
+    """
+    Validate the model performance on test data
+    
+    Args:
+        test_data: Test dataset (optional, will use holdout if not provided)
+    
+    Returns:
+        Validation metrics
+    """
+    classifier = get_classifier()
+    
+    if classifier.model is None:
+        classifier.load_model()
+    
+    if test_data is None:
+        # Load and split data for validation
+        df = load_training_data()
+        _, test_data = train_test_split(df, test_size=0.2, random_state=42, stratify=df['Is_Laundering'])
+    
+    # Prepare test features
+    X_test, _ = classifier.prepare_features_for_training(test_data)
+    y_test = test_data['Is_Laundering']
+    
+    # Scale features
+    if classifier.scaler:
+        X_test_scaled = classifier.scaler.transform(X_test)
+    else:
+        X_test_scaled = X_test
+    
+    # Make predictions
+    y_pred_proba = classifier.model.predict_proba(X_test_scaled)[:, 1]
+    y_pred = (y_pred_proba >= classifier.optimal_threshold).astype(int)
+    
+    # Calculate metrics
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    
+    metrics = {
+        'accuracy': accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred),
+        'recall': recall_score(y_test, y_pred),
+        'f1_score': f1_score(y_test, y_pred),
+        'auc_score': roc_auc_score(y_test, y_pred_proba),
+        'threshold': classifier.optimal_threshold,
+        'test_samples': len(y_test),
+        'positive_samples': y_test.sum()
+    }
+    
+    return metrics
+
+if __name__ == "__main__":
+    """
+    Main execution block for training and testing
+    """
+    logger.info("Starting AML Risk Classifier")
+    
+    try:
+        # Load training data
+        df = load_training_data()
         
         # Train model
-        print("\nTraining model on actual data...")
-        results = train_risk_classifier(training_df)
-        print(f"Training completed successfully!")
-        print(f"AUC Score: {results['auc_score']:.4f}")
-        print(f"Optimal Threshold: {results['optimal_threshold']:.4f}")
-        print(f"Feature Count: {results['feature_count']}")
+        logger.info("Training model...")
+        results = train_risk_classifier(df)
         
-        # Test prediction with trained model
-        print(f"\nSample prediction (trained model): {predict_risk_score(sample_transaction)}")
+        logger.info("Training completed successfully!")
+        logger.info(f"Results: {results}")
         
-        # Test multiple transactions
-        test_transactions = [
-            {
-                'amount': 9000,  # Suspicious structuring amount
-                'timestamp': '2024-06-15 02:30:00',  # Night transaction
-                'receiving_currency': 'CHF',  # High-risk currency
-                'payment_currency': 'USD',
-                'payment_format': 'wire_transfer'
-            },
-            {
-                'amount': 2500,  # Normal amount
-                'timestamp': '2024-06-15 14:30:00',  # Business hours
-                'receiving_currency': 'USD',
-                'payment_currency': 'USD',
-                'payment_format': 'card'
-            },
-            {
-                'amount': 10000,  # Round suspicious amount
-                'timestamp': '2024-06-15 23:45:00',  # Late night
-                'receiving_currency': 'EUR',
-                'payment_currency': 'GBP',
-                'payment_format': 'cash'
-            }
-        ]
+        # Test with a sample transaction
+        sample_transaction = {
+            'amount': 15000,
+            'timestamp': datetime.now(),
+            'from_bank': 123,
+            'to_bank': 456,
+            'receiving_currency': 'USD',
+            'payment_currency': 'EUR',
+            'payment_format': 'wire_transfer'
+        }
         
-        print("\nTesting multiple transactions:")
-        for i, txn in enumerate(test_transactions, 1):
-            risk_score = predict_risk_score(txn)
-            print(f"Transaction {i}: Risk Score = {risk_score:.4f}")
-            
+        # Predict risk
+        prediction = classify_transaction(sample_transaction)
+        logger.info(f"Sample prediction: {prediction}")
+        
+        # Model info
+        model_info = get_model_info()
+        logger.info(f"Model info: {model_info}")
+        
     except Exception as e:
-        print(f"Training failed: {str(e)}")
-        print("This might be due to data loading issues or insufficient suspicious transactions.")
-        print("You can still use basic rule-based scoring.")
-        
-        # Show basic scoring works
-        print(f"\nBasic scoring still works: {predict_risk_score(sample_transaction)}")
-    
-    print("\n" + "="*50)
-    print("SETUP INSTRUCTIONS:")
-    print("="*50)
-    print("1. Install required packages:")
-    print("   pip install pandas numpy scikit-learn imbalanced-learn xgboost joblib pyyaml")
-    print("\n2. To use with your own data:")
-    print("   - Ensure your DataFrame has the required columns")
-    print("   - Call train_risk_classifier(your_df) to train")
-    print("   - Call predict_risk_score(transaction_dict) to predict")
-    print("\n3. Required DataFrame columns for training:")
-    print("   - Timestamp, From_Bank, From_Account, To_Bank, To_Account")
-    print("   - Amount_Received, Receiving_Currency, Amount_Paid, Payment_Currency")
-    print("   - Payment_Format, Is_Laundering (target variable)")
-    print("\n4. Transaction dictionary keys for prediction:")
-    print("   - amount (required)")
-    print("   - timestamp, from_bank, to_bank (optional)")
-    print("   - receiving_currency, payment_currency, payment_format (optional)")
-    
-    print("\n" + "="*50)
-    print("TROUBLESHOOTING:")
-    print("="*50)
-    print("- If you get 'Model file not found' error, this is normal on first run")
-    print("- The system will use basic rule-based scoring until you train a model")
-    print("- Make sure you have training data with 'Is_Laundering' column")
-    print("- Check that file paths are accessible and you have write permissions")
-    print("- Ensure config.yaml and data files are in the correct locations")
+        logger.error(f"Error in main execution: {str(e)}")
+        raise
