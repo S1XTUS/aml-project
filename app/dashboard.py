@@ -152,9 +152,16 @@ with col1:
             to_bank = st.text_input("To Bank", value="Beta Bank")
             to_account = st.text_input("To Account", value="9876543210")
             
-            # Additional fields for better risk assessment
-            transaction_type = st.selectbox("Transaction Type", 
-                                          ["Wire Transfer", "ACH", "Check", "Cash Deposit", "International Transfer"])
+            transaction_type_options = {
+            "Wire Transfer": "wire_transfer",
+            "ACH": "ach", 
+            "Check": "check",
+            "Cash Deposit": "cash_deposit",
+            "International Transfer": "international_transfer"
+            }
+
+            transaction_type_display = st.selectbox("Transaction Type", list(transaction_type_options.keys()))
+            transaction_type = transaction_type_options[transaction_type_display]
             jurisdiction = st.selectbox("Destination Jurisdiction", 
                                       ["Domestic", "EU", "Offshore", "High-Risk Country"])
         
