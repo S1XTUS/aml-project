@@ -1,13 +1,9 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-from openai import OpenAI
 from src.data.preprocess_kyc import process_kyc_docs
-
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY", "your_key_here"),
-    base_url="https://api.deepseek.com/v1"
-)
+from src.llm.llm_client import get_llm_client
+from src.utils.config_loader import load_config
 
 def build_edd_prompt(record: dict) -> str:
     return f"""
@@ -33,8 +29,8 @@ Red Flags: {record['Red Flags']}
 def generate_edd_summary(record: dict) -> str:
     prompt = build_edd_prompt(record)
 
-    response = client.chat.completions.create(
-        model="deepseek-chat",
+    response = get_llm_client().chat.completions.create(
+        model=load_config()["llm"]["model"],
         messages=[
             {"role": "system", "content": "You are a financial risk expert."},
             {"role": "user", "content": prompt}

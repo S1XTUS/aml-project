@@ -18,35 +18,49 @@ class TransactionExplainer:
     Supports preprocessing, feature extraction, and visualization.
     """
     
-    def __init__(self, model_path: str, scaler_path: str, feature_names: Optional[List[str]] = None):
+    def __init__(self, model_path: str, scaler_path: str, feature_names: Optional[List[str]] = None,
+                 background_data: Optional[pd.DataFrame] = None):
         """
         Initialize the explainer with model and scaler paths.
-        
+
         Args:
             model_path (str): Path to the trained model pickle file
             scaler_path (str): Path to the scaler pickle file
-            feature_names (List[str], optional): List of feature names used in training
+            feature_names (List[str], optional): Feature names used in training; read from
+                the model's metadata file when omitted
+            background_data (pd.DataFrame, optional): Unscaled sample of training features for
+                LIME; sampled from the saved feature statistics when omitted
         """
         self.model_path = model_path
         self.scaler_path = scaler_path
         self.model = None
         self.scaler = None
         self.feature_names = feature_names or self._get_default_features()
+        self.background_data = background_data
         self.shap_explainer = None
         self.lime_explainer = None
-        
+
         # Load model and scaler
         self._load_model_and_scaler()
-        
+
     def _get_default_features(self) -> List[str]:
-        """Default feature names for AML transaction data."""
-        return [
-            "Amount_Received", "Amount_Paid", "Currency_Mismatch", 
-            "Receiving_Currency", "Payment_Currency", "Payment_Format",
-            "Transaction_Hour", "Transaction_Day", "Account_Age_Days",
-            "Previous_Transaction_Count", "Average_Transaction_Amount",
-            "Velocity_1h", "Velocity_24h", "High_Risk_Country"
-        ]
+        """Feature names saved alongside the trained model."""
+        metadata_path = self.model_path.replace('.pkl', '_metadata.pkl')
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(f"Model metadata not found: {metadata_path}; pass feature_names explicitly")
+        return joblib.load(metadata_path)['feature_columns']
+
+    def _sample_background(self, n: int = 500) -> pd.DataFrame:
+        """Approximate training-feature sample built from the saved per-feature statistics."""
+        stats_path = os.path.join(os.path.dirname(self.model_path), "aml_feature_stats.pkl")
+        stats = joblib.load(stats_path) if os.path.exists(stats_path) else {}
+        rng = np.random.default_rng(42)
+        columns = {}
+        for feature in self.feature_names:
+            s = stats.get(feature, {'mean': 0.0, 'std': 1.0, 'min': -np.inf, 'max': np.inf})
+            std = s['std'] if np.isfinite(s['std']) else 0.0
+            columns[feature] = np.clip(rng.normal(s['mean'], std, n), s['min'], s['max'])
+        return pd.DataFrame(columns)
     
     def _load_model_and_scaler(self):
         """Load the trained model and scaler."""
@@ -79,9 +93,8 @@ class TransactionExplainer:
             
             # Initialize LIME explainer
             if training_data is None:
-                # Create dummy training data if none provided
-                training_data = np.random.normal(0, 1, (100, len(self.feature_names)))
-            
+                training_data = self.scaler.transform(self._sample_background()[self.feature_names])
+
             self.lime_explainer = lime.lime_tabular.LimeTabularExplainer(
                 training_data=training_data,
                 feature_names=self.feature_names,
@@ -203,10 +216,12 @@ class TransactionExplainer:
         """
         try:
             if self.lime_explainer is None:
-                # Initialize with scaled training data
-                dummy_data = np.random.normal(0, 1, (100, len(self.feature_names)))
-                scaled_dummy = self.scaler.transform(dummy_data)
-                self._initialize_explainers(scaled_dummy)
+                # LIME works in the model's (scaled) input space
+                background = self.background_data
+                if background is None:
+                    background = self._sample_background()
+                scaled_background = self.scaler.transform(background[self.feature_names])
+                self._initialize_explainers(scaled_background)
             
             # Scale the features
             X_scaled = self.scaler.transform(transaction)
@@ -367,31 +382,32 @@ def main():
     """
     Example usage of the TransactionExplainer class.
     """
-    # Example configuration
-    MODEL_PATH = "models/risk_classifier_xgb.pkl"
-    SCALER_PATH = "models/risk_classifier_scaler.pkl"
-    
-    # Create sample transaction data
-    sample_transaction = pd.DataFrame({
-        'Amount_Received': [5000.0],
-        'Amount_Paid': [5000.0],
-        'Currency_Mismatch': [0],
-        'Receiving_Currency': [1],
-        'Payment_Currency': [1],
-        'Payment_Format': [2],
-        'Transaction_Hour': [14],
-        'Transaction_Day': [3],
-        'Account_Age_Days': [365],
-        'Previous_Transaction_Count': [10],
-        'Average_Transaction_Amount': [2500.0],
-        'Velocity_1h': [1],
-        'Velocity_24h': [3],
-        'High_Risk_Country': [0]
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+    from src.models.risk_classifier import get_classifier
+
+    classifier = get_classifier()
+    if not classifier.load_model():
+        print("❌ No trained risk classifier found - run src/models/risk_classifier.py first")
+        return
+
+    # Build model features for a sample transaction with the classifier's own pipeline
+    sample_transaction = classifier.build_feature_frame({
+        'amount': 5000.0,
+        'timestamp': '2022-09-05T02:30:00',
+        'from_bank': 70,
+        'to_bank': 1124,
+        'from_account': '100428660',
+        'to_account': '800825340',
+        'receiving_currency': 'USD',
+        'payment_currency': 'EUR',
+        'payment_format': 'wire_transfer'
     })
-    
+
     try:
         # Initialize explainer
-        explainer = TransactionExplainer(MODEL_PATH, SCALER_PATH)
+        explainer = TransactionExplainer(classifier.model_path, classifier.scaler_path,
+                                         feature_names=classifier.feature_columns)
         
         # Get SHAP explanation
         print("\n=== SHAP Explanation ===")

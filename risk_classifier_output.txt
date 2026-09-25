@@ -1,79 +1,31 @@
-PS D:\aml-project> & C:/Users/karti/.conda/envs/AML/python.exe d:/aml-project/src/models/risk_classifier.py
-2025-06-24 02:20:43,818 - INFO - Starting AML Risk Classifier
-2025-06-24 02:20:54,673 - INFO - Loaded 6924049 transactions from training data
-2025-06-24 02:20:54,687 - INFO - Laundering cases: 3565 (0.051%)
-2025-06-24 02:20:54,687 - INFO - Training model...
-2025-06-24 02:20:54,688 - INFO - Starting model training on 6924049 transactions...
-2025-06-24 02:20:54,700 - INFO - Laundering cases: 3565 (0.051%)
-2025-06-24 02:20:54,702 - INFO - Preparing features for training...
-2025-06-24 02:20:54,702 - INFO - Creating advanced features...
-2025-06-24 02:23:05,503 - INFO - Created 35 new features
-2025-06-24 02:23:26,140 - INFO - Prepared 42 features for training
-2025-06-24 02:23:37,254 - INFO - Training set: 5539239 samples
-2025-06-24 02:23:37,254 - INFO - Test set: 1384810 samples
-2025-06-24 02:23:45,815 - INFO - Scaler fitted and data scaled successfully
-2025-06-24 02:24:18,857 - ERROR - Error in main execution: The specified ratio required to generate new sample in the majority class while trying to remove samples. Please increase the ratio.
-Traceback (most recent call last):
-  File "d:\aml-project\src\models\risk_classifier.py", line 835, in <module>     
-    results = train_risk_classifier(df)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "d:\aml-project\src\models\risk_classifier.py", line 591, in train_risk_classifier
-    results = classifier.train_model(df)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "d:\aml-project\src\models\risk_classifier.py", line 302, in train_model  
-    X_train_resampled, y_train_resampled = undersampler.fit_resample(X_train_resampled, y_train_resampled)
-  File "C:\Users\karti\.conda\envs\AML\Lib\site-packages\imblearn\base.py", line 202, in fit_resample
-    return super().fit_resample(X, y, **params)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\karti\.conda\envs\AML\Lib\site-packages\sklearn\base.py", line 1389, in wrapper
-    return fit_method(estimator, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\karti\.conda\envs\AML\Lib\site-packages\imblearn\base.py", line 101, in fit_resample
-    self.sampling_strategy_ = check_sampling_strategy(
-                              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\karti\.conda\envs\AML\Lib\site-packages\imblearn\utils\_validation.py", line 571, in check_sampling_strategy
-    _sampling_strategy_float(sampling_strategy, y, sampling_type).items()
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\karti\.conda\envs\AML\Lib\site-packages\imblearn\utils\_validation.py", line 430, in _sampling_strategy_float
-    raise ValueError(
-ValueError: The specified ratio required to generate new sample in the majority class while trying to remove samples. Please increase the ratio.
-PS D:\aml-project> & C:/Users/karti/.conda/envs/AML/python.exe d:/aml-project/src/models/risk_classifier.py
-2025-06-24 02:52:58,031 - INFO - Starting AML Risk Classifier
-2025-06-24 02:53:08,588 - INFO - Loaded 6924049 transactions from training data
-2025-06-24 02:53:08,601 - INFO - Laundering cases: 3565 (0.051%)
-2025-06-24 02:53:08,601 - INFO - Training model...
-2025-06-24 02:53:08,601 - INFO - Starting model training on 6924049 transactions...
-2025-06-24 02:53:08,615 - INFO - Laundering cases: 3565 (0.051%)
-2025-06-24 02:53:08,615 - INFO - Preparing features for training...
-2025-06-24 02:53:08,615 - INFO - Creating advanced features...
-2025-06-24 02:55:13,839 - INFO - Created 35 new features
-2025-06-24 02:55:33,463 - INFO - Prepared 42 features for training
-2025-06-24 02:55:43,621 - INFO - Training set: 5539239 samples
-2025-06-24 02:55:43,621 - INFO - Test set: 1384810 samples
-2025-06-24 02:55:50,745 - INFO - Scaler fitted and data scaled successfully
-2025-06-24 02:55:50,753 - INFO - Original class distribution - Positive: 2852, Negative: 5536387
-2025-06-24 02:56:20,394 - INFO - After SMOTE - Positive: 5536387, Negative: 5536387
-2025-06-24 02:56:20,404 - INFO - Skipping undersampling - ratio already reasonable after SMOTE
-2025-06-24 02:56:20,415 - INFO - Final resampled distribution - Positive: 5536387, Negative: 5536387
-2025-06-24 02:56:20,436 - INFO - Final positive class ratio: 50.0%
-2025-06-24 02:56:20,443 - INFO - Training XGBoost with scale_pos_weight=100.00
-2025-06-24 02:59:53,924 - INFO - Model training completed!
-2025-06-24 02:59:53,924 - INFO - AUC Score: 0.6123
-2025-06-24 02:59:53,924 - INFO - Optimal Threshold: 0.9380
-2025-06-24 02:59:53,924 - INFO - Precision: 0.0046
-2025-06-24 02:59:53,924 - INFO - Recall: 0.0435
-2025-06-24 02:59:53,925 - INFO - F1 Score: 0.0084
-2025-06-24 02:59:53,925 - INFO - Top 5 features: ['unique_recipients_count', 'unique_senders_count', 'Payment_Format_encoded', 'day_of_week', 'from_account_tx_sum_30D']
-2025-06-24 02:59:54,300 - INFO - Model saved to d:\aml-project\models\risk_classifier_xgb.pkl
-2025-06-24 02:59:54,307 - INFO - Scaler saved to d:\aml-project\models\risk_classifier_scaler.pkl
-2025-06-24 02:59:54,309 - INFO - Preprocessor saved to d:\aml-project\models\aml_preprocessor.pkl
-2025-06-24 02:59:54,323 - INFO - Feature statistics saved to d:\aml-project\models\aml_feature_stats.pkl
-2025-06-24 02:59:54,938 - INFO - Encoders saved to d:\aml-project\models\aml_encoders.pkl
-2025-06-24 02:59:54,941 - INFO - Metadata saved to d:\aml-project\models\risk_classifier_xgb_metadata.pkl
-2025-06-24 02:59:54,941 - INFO - All model components saved successfully!
-2025-06-24 02:59:54,941 - INFO - Training completed successfully!
-2025-06-24 02:59:54,942 - INFO - Results: {'auc_score': 0.6123196523284798, 'optimal_threshold': 0.9380317, 'precision': 0.004642108415693322, 'recall': 0.043478260869565216, 'f1_score': 0.008388580706264375, 'top_features': [('unique_recipients_count', 0.08581357), ('unique_senders_count', 0.084012404), ('Payment_Format_encoded', 0.082676716), ('day_of_week', 0.07450787), ('from_account_tx_sum_30D', 0.047063377), ('currency_match', 0.04559345), ('hour', 0.045323852), ('Payment_Currency_encoded', 0.039561816), ('Receiving_Currency_encoded', 0.038843658), ('is_night_transaction', 0.03339751), ('from_account_tx_sum_7D', 0.029615415), ('same_bank', 0.029188577), ('from_account_Amount_Paid_count', 0.02892783), ('from_account_same_bank_mean', 0.027470445), ('from_account_Amount_Paid_std', 0.027071547), ('From_Bank', 0.02644629), ('amount_ratio', 0.025461739), ('from_account_Amount_Paid_mean', 0.02335734), ('Amount_Received', 0.023152106), ('bank_pair_encoded', 0.02300552)], 'training_samples': 11072774, 'test_samples': 1384810, 'feature_count': 42, 'original_positive_ratio': 0.000514872169263684, 'final_positive_ratio': 0.5, 'scale_pos_weight': 100}
-2025-06-24 02:59:54,976 - INFO - Creating advanced features...
-2025-06-24 02:59:55,016 - INFO - Created 30 new features
-2025-06-24 02:59:55,665 - INFO - Sample prediction: {'risk_score': 0.936, 'is_suspicious': False, 'confidence': 0.0022, 'threshold_used': 0.9380317, 'risk_level': 'HIGH'}
-2025-06-24 02:59:55,667 - INFO - Model info: {'model_loaded': True, 'model_type': 'XGBClassifier', 'feature_count': 42, 'optimal_threshold': 0.9380317, 'model_path': 'd:\\aml-project\\models\\risk_classifier_xgb.pkl', 'scaler_available': True, 'encoders_count': 4, 'top_features': [('unique_recipients_count', 0.08581357), ('unique_senders_count', 0.084012404), ('Payment_Format_encoded', 0.082676716), ('day_of_week', 0.07450787), ('from_account_tx_sum_30D', 0.047063377), ('currency_match', 0.04559345), ('hour', 0.045323852), ('Payment_Currency_encoded', 0.039561816), ('Receiving_Currency_encoded', 0.038843658), ('is_night_transaction', 0.03339751)]}
+2026-09-26 03:16:37,584 - INFO - Starting AML Risk Classifier
+2026-09-26 03:16:50,173 - INFO - Loaded 6924049 transactions from training data
+2026-09-26 03:16:50,186 - INFO - Laundering cases: 3565 (0.051%)
+2026-09-26 03:16:50,186 - INFO - Training model...
+2026-09-26 03:16:50,187 - INFO - Starting model training on 6924049 transactions...
+2026-09-26 03:16:50,198 - INFO - Laundering cases: 3565 (0.051%)
+2026-09-26 03:16:50,198 - INFO - Preparing features...
+2026-09-26 03:16:50,198 - INFO - Creating advanced features...
+2026-09-26 03:17:59,131 - INFO - Created 35 new features
+2026-09-26 03:18:21,965 - INFO - Prepared 42 features
+2026-09-26 03:18:33,115 - INFO - Train / validation / test: 4708353 / 830886 / 1384810
+2026-09-26 03:18:41,157 - INFO - Class distribution - Positive: 2424, Negative: 4705929
+2026-09-26 03:18:41,231 - INFO - Training XGBoost with scale_pos_weight=1941.39
+2026-09-26 03:20:59,638 - INFO - Model training completed!
+2026-09-26 03:20:59,640 - INFO - Test ROC AUC: 0.9706 | PR AUC: 0.0669 (baseline 0.00051)
+2026-09-26 03:20:59,640 - INFO - Threshold (from validation): 0.9658
+2026-09-26 03:20:59,640 - INFO - Test Precision: 0.0763 | Recall: 0.3198 | F1: 0.1232
+2026-09-26 03:20:59,640 - INFO - Top 5 features: ['Payment_Format_encoded', 'amount_difference', 'unique_recipients_count', 'from_account_tx_count_1D', 'amount_difference_pct']
+2026-09-26 03:21:00,114 - INFO - Model saved to D:\Documents\aml-project\models\risk_classifier_xgb.pkl
+2026-09-26 03:21:00,124 - INFO - Scaler saved to D:\Documents\aml-project\models\risk_classifier_scaler.pkl
+2026-09-26 03:21:00,140 - INFO - Feature statistics saved to D:\Documents\aml-project\models\aml_feature_stats.pkl
+2026-09-26 03:21:00,375 - INFO - Encoders saved to D:\Documents\aml-project\models\aml_encoders.pkl
+2026-09-26 03:21:00,377 - INFO - Metadata saved to D:\Documents\aml-project\models\risk_classifier_xgb_metadata.pkl
+2026-09-26 03:21:00,378 - INFO - Training completed successfully!
+2026-09-26 03:21:00,378 - INFO - Results: {'auc_score': 0.9706181328783696, 'pr_auc': 0.06692387880244081, 'optimal_threshold': 0.9658059477806091, 'precision': 0.07627969220475075, 'recall': 0.31977559607293127, 'f1_score': 0.12317666126418152, 'best_iteration': 206, 'top_features': [('Payment_Format_encoded', 0.25428563), ('amount_difference', 0.14518148), ('unique_recipients_count', 0.10578788), ('from_account_tx_count_1D', 0.047512755), ('amount_difference_pct', 0.047136404), ('currency_match', 0.04134157), ('same_bank', 0.0394603), ('from_account_same_bank_mean', 0.029447071), ('unique_senders_count', 0.018379759), ('day_of_week', 0.014874311), ('from_account_tx_count_7D', 0.013788709), ('from_account_tx_sum_1D', 0.013392462), ('Amount_Received', 0.013176322), ('is_weekend', 0.012920118), ('bank_pair_encoded', 0.012693405), ('to_account_tx_count_7D', 0.012473944), ('Amount_Paid', 0.011570901), ('From_Bank', 0.011559994), ('amount_ratio', 0.011448848), ('from_account_tx_count_30D', 0.011226596)], 'training_samples': 4708353, 'validation_samples': 830886, 'test_samples': 1384810, 'feature_count': 42, 'original_positive_ratio': 0.0005148297079679455, 'scale_pos_weight': 1941.3898514851485}
+2026-09-26 03:21:00,415 - INFO - Preparing features...
+2026-09-26 03:21:00,415 - INFO - Creating advanced features...
+2026-09-26 03:21:00,494 - INFO - Created 35 new features
+2026-09-26 03:21:01,558 - INFO - Prepared 42 features
+2026-09-26 03:21:01,562 - INFO - Sample prediction: {'risk_score': 0.0071, 'is_suspicious': False, 'confidence': 0.9926, 'threshold_used': 0.9658059477806091, 'risk_level': 'LOW', 'scoring_method': 'model'}
+2026-09-26 03:21:01,564 - INFO - Model info: {'model_loaded': True, 'model_type': 'XGBClassifier', 'feature_count': 42, 'optimal_threshold': 0.9658059477806091, 'model_path': 'D:\\Documents\\aml-project\\models\\risk_classifier_xgb.pkl', 'scaler_available': True, 'encoders_count': 4, 'top_features': [('Payment_Format_encoded', 0.25428563), ('amount_difference', 0.14518148), ('unique_recipients_count', 0.10578788), ('from_account_tx_count_1D', 0.047512755), ('amount_difference_pct', 0.047136404), ('currency_match', 0.04134157), ('same_bank', 0.0394603), ('from_account_same_bank_mean', 0.029447071), ('unique_senders_count', 0.018379759), ('day_of_week', 0.014874311)]}

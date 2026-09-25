@@ -20,7 +20,8 @@ def extract_fields(text: str) -> dict:
 
     return fields
 
-def process_kyc_docs(folder_path="data/kyc_docs/") -> list:
+def process_kyc_docs(folder_path=None) -> list:
+    folder_path = folder_path or os.path.join(os.path.dirname(__file__), "../../data/kyc_docs")
     records = []
     for fname in os.listdir(folder_path):
         if fname.endswith(".txt"):

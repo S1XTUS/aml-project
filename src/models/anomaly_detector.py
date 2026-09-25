@@ -10,6 +10,13 @@ import joblib
 import warnings
 from datetime import datetime
 import logging
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from src.utils.config_loader import config_path
+
+DATA_PATH = config_path("processed_data")
+MODEL_DIR = config_path("model_dir")
 
 
 # Set up logging
@@ -55,15 +62,15 @@ class AnomalyDetector:
 
         for col in categorical_cols:
             if col in df.columns:
+                values = df[col].astype(str)
                 if fit:
                     self.encoders[col] = LabelEncoder()
-                    df_encoded[col] = self.encoders[col].fit_transform(df[col])
+                    df_encoded[col] = self.encoders[col].fit_transform(values)
                 else:
                     if col in self.encoders:
-                        unique_vals = self.encoders[col].classes_
-                        df_encoded[col] = df[col].astype(str).apply(
-                            lambda x: self.encoders[col].transform([x])[0] if x in unique_vals else -1
-                        )
+                        # Compare as strings: older saved encoders were fitted on raw ints
+                        mapping = {str(c): i for i, c in enumerate(self.encoders[col].classes_)}
+                        df_encoded[col] = values.map(mapping).fillna(-1).astype(int)
                     else:
                         logger.warning(f"Encoder for {col} not found. Skipping encoding.")
         
@@ -260,12 +267,17 @@ class AnomalyDetector:
         df_result = df.copy()
         df_result['anomaly_flag'] = anomaly_flags
         df_result['anomaly_score'] = anomaly_scores
-        df_result['risk_level'] = pd.cut(
-            anomaly_scores, 
-            bins=[-np.inf, np.percentile(anomaly_scores, 25), 
-                  np.percentile(anomaly_scores, 75), np.inf],
-            labels=['High Risk', 'Medium Risk', 'Low Risk']
-        )
+        # Risk level is relative to the batch; a batch with no spread (e.g. one row)
+        # falls back to the anomaly flag
+        cut_points = np.percentile(anomaly_scores, [25, 75])
+        if len(df_result) > 1 and cut_points[0] < cut_points[1]:
+            df_result['risk_level'] = pd.cut(
+                anomaly_scores,
+                bins=[-np.inf, cut_points[0], cut_points[1], np.inf],
+                labels=['High Risk', 'Medium Risk', 'Low Risk']
+            )
+        else:
+            df_result['risk_level'] = np.where(anomaly_flags == 1, 'High Risk', 'Low Risk')
         
         anomaly_count = anomaly_flags.sum()
         logger.info(f"Detected {anomaly_count} anomalies ({anomaly_count/len(df)*100:.2f}%)")
@@ -390,21 +402,20 @@ def train_anomaly_model(data_path=None, model_type='isolation_forest', contamina
     """
     # Default path if not provided
     if data_path is None:
-        data_path = r"D:\aml-project\data\processed\LI-Small_Trans.csv"
-    
+        data_path = DATA_PATH
+
     # Load data
     df = load_data(data_path)
-    
-    # Initialize and train detector
+
     detector = AnomalyDetector(model_type=model_type, contamination=contamination)
-    detector.train(df)
-    
-    # Evaluate if labels available
+
     if 'Is_Laundering' in df.columns:
-        # Split for evaluation
+        # Train on a split so the held-out part can be evaluated
         train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
         detector.train(train_df)
         detector.evaluate(test_df)
+    else:
+        detector.train(df)
     
     # Save model
     detector.save_model(model_dir)
@@ -464,10 +475,6 @@ def analyze_anomalies(df_results):
 
 # Main execution
 if __name__ == "__main__":
-    # Configuration
-    DATA_PATH = r"D:\aml-project\data\processed\LI-Small_Trans.csv"
-    MODEL_DIR = r"D:\aml-project\models"
-    
     # Train models with different algorithms
     print("Training Isolation Forest model...")
     detector_if = train_anomaly_model(

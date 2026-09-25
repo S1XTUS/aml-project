@@ -1,26 +1,29 @@
 import os
+import sys
 import glob
-import faiss
-import pickle
 from typing import List
-from typing import List
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
-from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings  # Replace with DeepSeek when available
-from langchain.document_loaders import TextLoader, PyPDFLoader
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from langchain_openai import OpenAIEmbeddings  # requires OPENAI_API_KEY
+
+from src.llm.llm_client import get_llm_client
+from src.utils.config_loader import config_path, load_config
+
+CORPUS_DIR = config_path("regulations_corpus")
+INDEX_PATH = config_path("rag_index")
+EMBEDDING_MODEL = "text-embedding-ada-002"
 
 
-CORPUS_DIR = "data/regulations_corpus/"
-INDEX_PATH = "data/processed/aml_index"
-
-
-def load_documents(folder : str) -> List[Document]:
+def load_documents(folder: str) -> List[Document]:
     docs = []
 
     for file in glob.glob(os.path.join(folder, "*")):
         if file.endswith(".txt"):
-            loader = TextLoader(file)
+            loader = TextLoader(file, encoding="utf-8")
         elif file.endswith(".pdf"):
             loader = PyPDFLoader(file)
         else:
@@ -33,13 +36,18 @@ def load_documents(folder : str) -> List[Document]:
 def build_index():
     print("Loading documents...")
     raw_docs = load_documents(CORPUS_DIR)
+    if not raw_docs:
+        raise FileNotFoundError(
+            f"No .txt or .pdf documents found in {CORPUS_DIR}. "
+            "Add AML regulations / guidance (e.g. FATF recommendations, FinCEN advisories) first."
+        )
 
     print("Splitting documents...")
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(raw_docs)
 
     print("Embedding and indexing...")
-    embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")  # Switch to DeepSeek later
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
     vectorstore = FAISS.from_documents(chunks, embedding=embeddings)
 
     print("Saving index...")
@@ -47,7 +55,9 @@ def build_index():
 
 def query_aml_policy(user_query: str, k: int = 3):
     print("Loading FAISS index...")
-    vectorstore = FAISS.load_local(INDEX_PATH, embeddings=OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+    # The index is created locally by build_index(), so loading its pickle is trusted
+    vectorstore = FAISS.load_local(INDEX_PATH, embeddings=OpenAIEmbeddings(model=EMBEDDING_MODEL),
+                                   allow_dangerous_deserialization=True)
 
     print(f"Searching top {k} chunks for query: {user_query}")
     results = vectorstore.similarity_search(user_query, k=k)
@@ -65,11 +75,8 @@ Question: {user_query}
 Answer concisely with references to guidance if possible.
 """
 
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com/v1")
-    
-    response = client.chat.completions.create(
-        model="deepseek-chat",
+    response = get_llm_client().chat.completions.create(
+        model=load_config()["llm"]["model"],
         messages=[
             {"role": "system", "content": "You are an expert in financial crime regulations."},
             {"role": "user", "content": prompt}

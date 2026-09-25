@@ -1,17 +1,20 @@
 paths:
-  raw_data: data\raw\archive\LI-Small_Trans.csv
-  processed_data: data\processed\LI-Small_Trans.csv
-  model_dir : models/
+  raw_data: data/raw/archive/LI-Small_Trans.csv
+  processed_data: data/processed/LI-Small_Trans.csv
+  model_dir: models/
+  regulations_corpus: data/regulations_corpus/
+  rag_index: data/processed/aml_index
 
+# Risk score (0-1) cut-offs used to label LOW / MEDIUM / HIGH everywhere
+# (API, SAR generator, realtime scorer). The classifier's own
+# `optimal_threshold` (tuned at training time) decides `is_suspicious`.
 thresholds:
-  anomaly_score:0.8
-  risk_score:0.7
+  risk_high: 0.7
+  risk_medium: 0.4
 
-api_keys:
-  deepseek:sk-1234567890
-
-model:
-  type: "xgboost"
-  features: ["Amount_Received", "Amount_Paid", "Payment_Format", "Receiving_Currency"]
-
-  
+# API keys are read from environment variables, never from this file.
+#   DEEPSEEK_API_KEY - SAR / KYC / EDD / RAG chat completions
+#   OPENAI_API_KEY   - RAG embeddings
+llm:
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat

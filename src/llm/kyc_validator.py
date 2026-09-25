@@ -1,20 +1,20 @@
 import os
-from openai import OpenAI
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.data.preprocess_kyc import process_kyc_docs
+from src.llm.llm_client import get_llm_client
+from src.utils.config_loader import load_config
 
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url= "https://api.deepseek.com/v1"
-)
 
-def build_prommt(record:dict) -> str:
-    prompt = f"""
-You are a compliance officer reviewing a customer's KYC data.set
+def build_prompt(record: dict) -> str:
+    return f"""
+You are a compliance officer reviewing a customer's KYC data.
 
 Please assess the following information:
 - Completeness: Are all required fields filled?
 - Consistency: Do the fields match each other? (any contradictions?)
-- Risk indicators : Are there any red flags or unusual patterns? ((e.g., tax haven, fake occupation, illogical source of funds)
+- Risk indicators: Are there any red flags or unusual patterns? (e.g., tax haven, fake occupation, illogical source of funds)
 
 KYC Details:
 Customer Name: {record['Customer Name']}
@@ -28,12 +28,13 @@ Red Flags: {record['Red Flags']}
 
 Return a summary report with findings and a risk assessment (low/medium/high).
 """
-    
+
+
 def validate_kyc(record: dict) -> str:
-    prompt = build_prommt(record)
-    resposne = client.chat.completions.create(
-        model="deepseek-chat",
-       messages=[
+    prompt = build_prompt(record)
+    response = get_llm_client().chat.completions.create(
+        model=load_config()["llm"]["model"],
+        messages=[
             {"role": "system", "content": "You are an AML compliance assistant."},
             {"role": "user", "content": prompt}
         ],
@@ -41,14 +42,14 @@ def validate_kyc(record: dict) -> str:
         max_tokens=500
     )
 
-    return resposne.choices[0].message.content
+    return response.choices[0].message.content
 
 
 if __name__ == "__main__":
     kyc_data = process_kyc_docs()
     print(f"Processed {len(kyc_data)} KYC documents.")
-    
-    for i , record in enumerate(kyc_data):
+
+    for i, record in enumerate(kyc_data):
         print(f"\n--- Validating KYC #{i+1} ({record['Customer Name']}) ---")
         summary = validate_kyc(record)
         print(summary)

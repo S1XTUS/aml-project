@@ -1,14 +1,17 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 import uvicorn
-import pandas as pd
-from src.models.risk_classifier import predict_risk_score
-from src.llm.sar_generator import IntegratedSARGenerator  # Updated import
-from src.llm.kyc_validator import validate_kyc
-from typing import Optional, Dict, Any
+import os
+import sys
+from typing import Optional
 import logging
 from datetime import datetime
-import json
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from src.models.risk_classifier import classify_transaction, transaction_from_case, get_classifier
+from src.llm.sar_generator import IntegratedSARGenerator
+from src.llm.kyc_validator import validate_kyc
+from src.data.preprocess_kyc import extract_fields
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -105,35 +108,9 @@ def predict_risk(request: RiskPredictionRequest):
     try:
         logger.info(f"Processing risk prediction for case: {request.case_id}")
         
-        # Convert the request to the format expected by predict_risk_score
-        transaction_data = {
-            'case_id': request.case_id,
-            'timestamp': request.transaction_time,
-            'from_bank': request.from_bank,
-            'from_account': request.from_account,
-            'to_bank': request.to_bank,
-            'to_account': request.to_account,
-            'amount': request.amount,
-            'amount_paid': request.amount,
-            'amount_received': request.amount,
-            'currency': request.currency,
-            'receiving_currency': request.currency,
-            'payment_currency': request.currency,
-            'payment_format': request.transaction_type,
-            'transaction_type': request.transaction_type,
-            'jurisdiction': request.jurisdiction
-        }
-        
-        # Get risk score from the classifier
-        risk_score = predict_risk_score(transaction_data)
-        
-        # Determine risk level
-        if risk_score >= 0.7:
-            risk_level = "HIGH"
-        elif risk_score >= 0.4:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
+        result = classify_transaction(transaction_from_case(request.model_dump()))
+        risk_score = result["risk_score"]
+        risk_level = result["risk_level"]
         
         logger.info(f"Risk prediction completed for case {request.case_id}: {risk_score:.4f} ({risk_level})")
         
@@ -141,6 +118,8 @@ def predict_risk(request: RiskPredictionRequest):
             "case_id": request.case_id,
             "risk_score": float(risk_score),
             "risk_level": risk_level,
+            "is_suspicious": result["is_suspicious"],
+            "scoring_method": result["scoring_method"],
             "timestamp": request.transaction_time,
             "status": "success"
         }
@@ -161,7 +140,7 @@ def analyze_comprehensive(request: ComprehensiveAnalysisRequest):
         logger.info(f"Processing comprehensive analysis for case: {request.case_id}")
         
         # Convert request to transaction data format
-        transaction_data = request.dict()
+        transaction_data = request.model_dump()
         
         # Run comprehensive analysis using integrated system
         analysis_results = sar_generator.analyze_transaction(transaction_data)
@@ -216,7 +195,7 @@ def generate_sar_endpoint(tx: EnhancedTransaction):
         logger.info(f"Generating comprehensive SAR for case: {tx.case_id}")
         
         # Convert Pydantic model to dict
-        case_data = tx.dict()
+        case_data = tx.model_dump()
         
         # Generate comprehensive SAR using integrated system
         sar_output = sar_generator.generate_enhanced_sar(case_data)
@@ -260,7 +239,7 @@ def generate_sar_full_output(tx: EnhancedTransaction):
         logger.info(f"Generating full SAR output for case: {tx.case_id}")
         
         # Convert Pydantic model to dict
-        case_data = tx.dict()
+        case_data = tx.model_dump()
         
         # Generate comprehensive SAR with file outputs
         sar_output = sar_generator.generate_enhanced_sar(case_data)
@@ -327,17 +306,26 @@ async def validate_kyc_api(file: UploadFile = File(...)):
         content = await file.read()
         text = content.decode("utf-8")
         
-        # Validate KYC
-        result = validate_kyc(text)
+        # Extract structured fields, then validate them with the LLM
+        record = extract_fields(text)
+        if not any(record.values()):
+            raise HTTPException(
+                status_code=400,
+                detail="No KYC fields found; expected lines like 'Customer Name: ...'"
+            )
+        result = validate_kyc(record)
         
         logger.info(f"KYC validation completed for file: {file.filename}")
         
         return {
             "filename": file.filename,
+            "extracted_fields": record,
             "validation_result": result,
             "status": "success"
         }
         
+    except HTTPException:
+        raise
     except UnicodeDecodeError:
         logger.error(f"Unable to decode file {file.filename} as UTF-8")
         raise HTTPException(
@@ -364,7 +352,7 @@ def batch_comprehensive_analysis(transactions: list[ComprehensiveAnalysisRequest
         for transaction in transactions:
             try:
                 # Convert to transaction data format
-                transaction_data = transaction.dict()
+                transaction_data = transaction.model_dump()
                 
                 # Run comprehensive analysis
                 analysis_results = sar_generator.analyze_transaction(transaction_data)
@@ -424,40 +412,16 @@ def batch_predict_risk(transactions: list[RiskPredictionRequest]):
         
         for transaction in transactions:
             try:
-                # Convert to transaction data format
-                transaction_data = {
-                    'case_id': transaction.case_id,
-                    'timestamp': transaction.transaction_time,
-                    'from_bank': transaction.from_bank,
-                    'from_account': transaction.from_account,
-                    'to_bank': transaction.to_bank,
-                    'to_account': transaction.to_account,
-                    'amount': transaction.amount,
-                    'amount_paid': transaction.amount,
-                    'amount_received': transaction.amount,
-                    'currency': transaction.currency,
-                    'receiving_currency': transaction.currency,
-                    'payment_currency': transaction.currency,
-                    'payment_format': transaction.transaction_type,
-                    'transaction_type': transaction.transaction_type,
-                    'jurisdiction': transaction.jurisdiction
-                }
-                
-                # Get risk score
-                risk_score = predict_risk_score(transaction_data)
-                
-                # Determine risk level
-                if risk_score >= 0.7:
-                    risk_level = "HIGH"
-                elif risk_score >= 0.4:
-                    risk_level = "MEDIUM"
-                else:
-                    risk_level = "LOW"
+                result = classify_transaction(transaction_from_case(transaction.model_dump()))
+                risk_score = result["risk_score"]
+                risk_level = result["risk_level"]
                 
                 results.append({
                     "case_id": transaction.case_id,
                     "risk_score": float(risk_score),
                     "risk_level": risk_level,
+                    "is_suspicious": result["is_suspicious"],
+                    "scoring_method": result["scoring_method"],
                     "status": "success"
                 })
                 
@@ -494,9 +458,10 @@ def get_model_info():
     Get information about the loaded models and integrated system
     """
     try:
-        from src.models.risk_classifier import get_classifier
-        
         classifier = get_classifier()
+        if classifier.model is None:
+            classifier.load_model()
+        anomaly_loaded = sar_generator.anomaly_detector._get_detector() is not None
         
         model_info = {
             "risk_classifier": {
@@ -506,9 +471,9 @@ def get_model_info():
                 "model_type": "XGBoost" if classifier.model is not None else "Rule-based"
             },
             "integrated_system": {
-                "explainer_component": "Active",
-                "anomaly_detector": "Active", 
-                "risk_classifier": "Active",
+                "explainer_component": "SHAP" if classifier.model is not None else "Unavailable",
+                "anomaly_detector": "Isolation Forest" if anomaly_loaded else "Rule-based patterns only",
+                "risk_classifier": "XGBoost" if classifier.model is not None else "Rule-based",
                 "sar_generator": "Active"
             },
             "api_version": "2.0.0",
@@ -532,19 +497,11 @@ def get_model_info():
             detail=f"Failed to get model info: {str(e)}"
         )
 
-# Error handlers
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    return {"error": "Endpoint not found", "status_code": 404}
-
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    return {"error": "Internal server error", "status_code": 500}
-
 if __name__ == "__main__":
+    # reload requires an import string; run from the project root
     uvicorn.run(
-        app, 
-        host="0.0.0.0", 
+        "app.api:app",
+        host="0.0.0.0",
         port=8000,
         log_level="info",
         reload=True  # Enable auto-reload during development
